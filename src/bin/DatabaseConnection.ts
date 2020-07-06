@@ -30,9 +30,14 @@ export default class DatabaseConnection {
                         this.events.emit('state', this.state);
                     });
                     this.connections[index].connection.on('debug', (msg) => {
-                        console.log('debug connection:', msg);
                         let stateChange = msg.split(' -> ');
-                        this.state = stateChange[1];
+
+                        Object.keys(TediousStates).forEach(state => {
+                            if (TediousStates[state] === stateChange[1]) {
+                                this.state = stateChange[1];
+                                this.events.emit('state', this.state);
+                            }
+                        });
 
                         if (this.state === 'LoggedIn') {
                             return resolve();
