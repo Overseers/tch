@@ -5,10 +5,6 @@ import { PoolConfig } from "./Types";
 class ConnectionHandler {
     databaseConnections: DatabaseConnection[] = [];
 
-    constructor() {
-
-    }
-
     getByConfig = (config: ConnectionConfig, name: string, pool: PoolConfig): Promise<DatabaseConnection> => {
         return new Promise((resolve) => {
             let index = this.databaseConnections.findIndex(conn => JSON.stringify(conn.config) === JSON.stringify(config));

@@ -1,6 +1,6 @@
 {
   "name": "@overseers/tch",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "description": "Tedious Connection Handler",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

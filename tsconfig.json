@@ -2,14 +2,11 @@
     "compilerOptions": {
         "target": "ES2018",
         "module": "CommonJS",
-        "outDir": "dist/",
+        "outDir": "./dist",
+        "rootDirs": [
+            "./",
+            "./src"
+        ],
         "declaration":true
     },
-    "include": [
-        "src/**/*"
-    ],
-    "exclude": [
-        "node_modules",
-        "dist/"
-    ]
 }
