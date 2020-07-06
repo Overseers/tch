@@ -1,6 +1,6 @@
 {
   "name": "@overseers/tch",
-  "version": "0.0.4",
+  "version": "0.0.7",
   "description": "Tedious Connection Handler",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,7 +9,8 @@
     "rimraf": "./node_modules/rimraf/bin.js",
     "build": "npm run clean && tsc",
     "watch": "tsc -w",
-    "clean": "rimraf dist/"
+    "clean": "rimraf dist/",
+    "publish:patch": "tsc && npm version patch --no-git-tag-version && npm publish"
   },
   "files": [
     "dist/**/*"
@@ -42,7 +43,7 @@
     "ts-node-dev": "^1.0.0-pre.50",
     "typescript": "^3.9.6"
   },
-  "dependencies": {
+  "peerDependencies": {
     "tedious": "^8.3.0"
   }
 }

@@ -1,5 +1,5 @@
 import { Connection, ConnectionConfig, Request } from 'tedious';
-import { PoolConfig, ConnectionWrapper, RequestParameter, RequestWrapper } from './Types';
+import { PoolConfig, ConnectionWrapper, RequestParameter, RequestWrapper, TediousStates } from './Types';
 import { EventEmitter } from 'events';
 
 export default class DatabaseConnection {
@@ -9,6 +9,7 @@ export default class DatabaseConnection {
     config: ConnectionConfig;
     events: EventEmitter = new EventEmitter();
     queue: RequestWrapper[] = [];
+    state: string = TediousStates.INITIALIZED;
 
     constructor(name: string, config: ConnectionConfig, pool: PoolConfig) {
         this.name = name;
@@ -21,13 +22,26 @@ export default class DatabaseConnection {
             Promise.all(Array(this.poolConfig.min).fill(null).map(() => {
                 return new Promise((resolve, reject) => {
                     let index = this.connections.push(new ConnectionWrapper(new Connection(this.config), this.poolConfig)) - 1;
+                    const { } = this.connections[index].connection;
                     this.connections[index].connection.on('connect', (error) => {
                         if (error) {
                             return reject(error);
-                        } else {
+                        }
+                        this.events.emit('state', this.state);
+                    });
+                    this.connections[index].connection.on('debug', (msg) => {
+                        console.log('debug connection:', msg);
+                        let stateChange = msg.split(' -> ');
+                        this.state = stateChange[1];
+
+                        if (this.state === 'LoggedIn') {
                             return resolve();
                         }
                     });
+                    this.connections[index].connection.on('infoMessage', (info) => console.log('infoMsg', info));
+                    this.connections[index].connection.on('errorMessage', (error) => console.error('errorMsg', error));
+                    this.connections[index].connection.on('error', (error) => console.error('error:', error));
+                    this.connections[index].connection.on('end', () => console.log('ended connection'));
                 });
             }))
                 .then(() => resolve())

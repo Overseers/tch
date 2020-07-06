@@ -13,8 +13,10 @@ class ConnectionHandler {
                 index = this.databaseConnections.push(new DatabaseConnection(name, config, pool)) - 1;
             }
 
-            this.databaseConnections[index].createConnections();
-            return resolve(this.databaseConnections[index]);
+            this.databaseConnections[index].createConnections()
+                .then(() => {
+                    return resolve(this.databaseConnections[index]);
+                });
         });
     };
 
