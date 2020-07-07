@@ -1,53 +1,31 @@
-import { TYPES, Connection } from 'tedious';
-import { EventEmitter } from 'events';
+import { TediousType } from 'tedious';
 
-export type RequestParameter = {
-    name: string,
-    type: typeof TYPES,
+export class RequestParameter {
+    name: string;
+    type: TediousType;
     value: any;
-};
 
-export type RequestWrapper = {
-    query: string,
-    inputParams: RequestParameter[],
-    outputParams: RequestParameter[],
-    onFinish: (rows?: any[]) => void,
-    onError: (message: string) => void;
-};
-
-export class ConnectionWrapper {
-    connection: Connection;
-    ttl: NodeJS.Timeout = null;
-    pool: PoolConfig;
-    events: EventEmitter = new EventEmitter();
-    createdUnderMinimum: boolean = true;
-    busy: boolean = false;
-
-    constructor(connection: Connection, pool: PoolConfig, createdUnderMinimum: boolean = true) {
-        this.connection = connection;
-        this.pool = pool;
-        this.createdUnderMinimum = createdUnderMinimum;
-
-        if (this.createdUnderMinimum) {
-            this.ttl = setTimeout(this.expire, this.pool.timeoutMS);
-        }
-    };
-
-    getConnection() {
-        if (!this.createdUnderMinimum) {
-            if (this.ttl) {
-                clearTimeout(this.ttl);
-            }
-            this.ttl = setTimeout(this.expire, this.pool.timeoutMS);
-        }
-        return this.connection;
+    constructor(name: string, type: TediousType, value: any) {
+        this.name = name;
+        this.type = type;
+        this.value = value;
     }
+};
 
-    expire = () => {
-        clearTimeout(this.ttl);
-        this.events.emit('ttl');
-        this.ttl = null;
-    };
+export class RequestWrapper {
+    query: string;
+    inputParams: RequestParameter[];
+    outputParams: RequestParameter[];
+    onFinish: (rows?: any[]) => void;
+    onError: (message: string) => void;
+
+    constructor(query: string, onFinish: (rows?: any[]) => void, onError: (message: string) => void, inputParams: RequestParameter[] = [], outputParams: RequestParameter[] = []) {
+        this.query = query;
+        this.inputParams = inputParams;
+        this.outputParams = outputParams;
+        this.onFinish = onFinish;
+        this.onError = onError;
+    }
 };
 
 export type PoolConfig = {

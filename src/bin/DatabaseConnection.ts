@@ -1,5 +1,6 @@
 import { Connection, ConnectionConfig, Request } from 'tedious';
-import { PoolConfig, ConnectionWrapper, RequestParameter, RequestWrapper, TediousStates } from './Types';
+import { PoolConfig, RequestParameter, RequestWrapper, TediousStates } from './Types';
+import ConnectionWrapper from './ConnectionWrapper';
 import { EventEmitter } from 'events';
 
 export default class DatabaseConnection {
@@ -9,7 +10,6 @@ export default class DatabaseConnection {
     config: ConnectionConfig;
     events: EventEmitter = new EventEmitter();
     queue: RequestWrapper[] = [];
-    state: string = TediousStates.INITIALIZED;
 
     constructor(name: string, config: ConnectionConfig, pool: PoolConfig) {
         this.name = name;
@@ -22,31 +22,12 @@ export default class DatabaseConnection {
             Promise.all(Array(this.poolConfig.min).fill(null).map(() => {
                 return new Promise((resolve, reject) => {
                     let index = this.connections.push(new ConnectionWrapper(new Connection(this.config), this.poolConfig)) - 1;
-                    const { } = this.connections[index].connection;
-                    this.connections[index].connection.on('connect', (error) => {
-                        if (error) {
-                            return reject(error);
-                        }
-                        this.events.emit('state', this.state);
-                    });
-                    this.connections[index].connection.on('debug', (msg) => {
-                        let stateChange = msg.split(' -> ');
-
-                        Object.keys(TediousStates).forEach(state => {
-                            if (TediousStates[state] === stateChange[1]) {
-                                this.state = stateChange[1];
-                                this.events.emit('state', this.state);
-                            }
-                        });
-
-                        if (this.state === 'LoggedIn') {
+                    this.connections[index].events.on('state', (message) => {
+                        if (message === TediousStates.LOGGED_IN && !this.connections[index].intialized) {
+                            this.connections[index].intialized = true;
                             return resolve();
                         }
                     });
-                    this.connections[index].connection.on('infoMessage', (info) => console.log('infoMsg', info));
-                    this.connections[index].connection.on('errorMessage', (error) => console.error('errorMsg', error));
-                    this.connections[index].connection.on('error', (error) => console.error('error:', error));
-                    this.connections[index].connection.on('end', () => console.log('ended connection'));
                 });
             }))
                 .then(() => resolve())
@@ -57,14 +38,31 @@ export default class DatabaseConnection {
     increaseConnections = () => {
         return new Promise((resolve, reject) => {
             if (this.connections.length < this.poolConfig.max) {
-                let index = this.connections.push(new ConnectionWrapper(new Connection(this.config), this.poolConfig, false));
+                let index = this.connections.push(new ConnectionWrapper(new Connection(this.config), this.poolConfig, false)) - 1;
 
-                this.connections[index].connection.on('connect', (error) => {
-                    if (error) {
-                        return reject(error);
-                    } else {
+                this.connections[index].id = index;
+
+                const initialized = (message) => {
+                    if (message === TediousStates.LOGGED_IN && !this.connections[index].intialized) {
+                        console.log('new connection is ready');
+                        this.connections[index].intialized = true;
+                        this.connections[index].events.removeListener('status', initialized);
                         return resolve();
                     }
+                };
+
+                this.connections[index].events.on('state', (message) => {
+                    let newIndex = this.connections.findIndex(conn => conn.id === index);
+                    if (message === TediousStates.LOGGED_IN && !this.connections[newIndex].intialized) {
+                        this.connections[newIndex].intialized = true;
+                        return resolve();
+                    }
+                });
+
+                this.connections[index].events.on('ttl', () => {
+                    let newIndex = this.connections.findIndex(conn => conn.id === index);
+                    let connection = this.connections.splice(newIndex, 1);
+                    connection[0].connection.close();
                 });
             } else {
                 return reject({ message: 'Max connection pool reached' });
@@ -72,76 +70,118 @@ export default class DatabaseConnection {
         });
     };
 
-    execSql = (sql: string, inputParameters: RequestParameter[], outputParameters: RequestParameter[]) => {
+    execSql = (sql: string, inputParameters: RequestParameter[] = [], outputParameters: RequestParameter[] = []) => {
         return new Promise((resolve, reject) => {
             this.getAvailableConnection()
                 .then(connection => {
                     connection.busy = true;
-                    let request = new Request(sql, (error, rowCount, rows) => {
-                        connection.busy = false;
+                    let rows: any[] = [];
+                    let request = new Request(sql, (error, rowCount, rowsInserted) => {
+                        connection.markInactive();
                         if (error) {
                             return reject(error);
                         }
 
                         return resolve(rows);
                     });
+
+                    inputParameters.forEach(params => request.addParameter(params.name, params.type, params.value));
+
+                    outputParameters.forEach(params => request.addOutputParameter(params.name, params.type, params.value));
+
+                    request.on('row', (columns) => {
+                        rows.push(
+                            columns.reduce((acc, next) => {
+                                if (typeof next.value === 'string') {
+                                    acc[next.metadata.colName] = next.value.trim();
+                                } else {
+                                    acc[next.metadata.colName] = next.value;
+                                }
+                                return acc;
+                            }, {})
+                        );
+                    });
+
                     connection.getConnection().execSql(request);
                 })
                 .catch(error => reject(error));
         });
     };
 
-    dequeue = (previousConnection?: ConnectionWrapper) => {
-        if (this.queue.length > 0) {
-            this.getAvailableConnection()
-                .then(connection => {
-                    let requestWrapper = this.queue.shift();
-                    connection.busy = true;
-                    let request = new Request(requestWrapper.query, (error, rowCount, rows) => {
-                        if (error) {
-                            requestWrapper.onError(error.message);
-                        } else {
-                            requestWrapper.onFinish(rows);
-                            this.dequeue(connection);
-                        }
-                    });
-                    connection.getConnection().execSql(request);
-                })
-                .catch(error => {
-                    if (previousConnection) {
-                        let requestWrapper = this.queue.shift();
-                        previousConnection.busy = true;
-                        let request = new Request(requestWrapper.query, (error, rowCount, rows) => {
-                            if (error) {
-                                requestWrapper.onError(error.message);
-                            } else {
-                                requestWrapper.onFinish(rows);
-                                this.dequeue(previousConnection);
-                            }
-                        });
-                        previousConnection.getConnection().execSql(request);
+    handleRequest = (connection: ConnectionWrapper) => {
+        let requestWrapper = this.queue.shift();
+        connection.busy = true;
+        let rows: any[] = [];
+        console.log('sending requests');
+        let request = new Request(requestWrapper.query, (error, rowCount, rowsInserted) => {
+            if (error) {
+                requestWrapper.onError(error.message);
+                this.dequeue(connection);
+            } else {
+                requestWrapper.onFinish(rows);
+                this.dequeue(connection);
+            }
+        });
+
+        requestWrapper.inputParams.forEach(params => request.addParameter(params.name, params.type, params.value));
+
+        requestWrapper.outputParams.forEach(params => request.addOutputParameter(params.name, params.type, params.value));
+
+        request.on('row', (columns) => {
+            rows.push(
+                columns.reduce((acc, next) => {
+                    if (typeof next.value === 'string') {
+                        acc[next.metadata.colName] = next.value.trim();
                     } else {
-                        this.increaseConnections()
-                            .catch(error => console.error(error));
+                        acc[next.metadata.colName] = next.value;
                     }
-                });
+                    return acc;
+                }, {})
+            );
+        });
+        connection.getConnection().execSql(request);
+    };
+
+    dequeue = (previousConnection: ConnectionWrapper = null) => {
+        console.log(`There are ${this.connections.filter(conn => conn.busy).length} connections busy with a queue of ${this.queue.length}`);
+        if (this.queue.length > 0) {
+            let connection: ConnectionWrapper = previousConnection;
+            if (connection === null) {
+                let index = this.connections.findIndex(connection => !connection.busy && connection.intialized);
+
+                if (index > -1) {
+                    connection = this.connections[index];
+                } else if (this.connections.length < this.poolConfig.max) {
+                    this.increaseConnections()
+                        .then(() => this.dequeue())
+                        .catch(error => {
+
+                        });
+                    return;
+                }
+            }
+            if (connection !== null) {
+                this.handleRequest(connection);
+            }
         } else {
             if (previousConnection) {
-                previousConnection.busy = false;
+                previousConnection.markInactive();
             }
         }
     };
 
     enqueue = (request: RequestWrapper) => {
+        let filler = { outputParams: [], inputParams: [] };
         this.queue.push(request);
         this.dequeue();
     };
 
     getAvailableConnection = (): Promise<ConnectionWrapper> => {
         return new Promise((resolve, reject) => {
-            let index = this.connections.findIndex(connection => !connection.busy);
+            let index = this.connections.findIndex(connection => !connection.busy && connection.intialized);
 
             if (index > -1) {
+                this.connections[index].busy = true;
                 return resolve(this.connections[index]);
             } else {
                 return reject({ message: 'No available connection' });

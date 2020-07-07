@@ -1,6 +1,7 @@
 import ConnectionHandler from './bin/ConnectionHandler';
 import DatabaseConnection from './bin/DatabaseConnection';
-import { RequestParameter, RequestWrapper, ConnectionWrapper, PoolConfig } from './bin/Types';
+import ConnectionWrapper from './bin/ConnectionWrapper';
+import { RequestParameter, RequestWrapper, PoolConfig } from './bin/Types';
 
 export {
     RequestParameter,
