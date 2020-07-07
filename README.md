@@ -13,36 +13,36 @@ A tedious wrapper to provide some extra functionality with promise based connect
 ### Usage
 #### Creating a connection:
 ```javascript
-	import { ConnectionHandler } from '@overseers/tch'
-	
-	ConnectionHandler.getByConfig({
-		authentication: {
-			options: {
-				userName: 'myUser',
-				password: 'myPassword
-			},
-			type: 'default'
-		},
-		options: {
-			database: 'mydb'
-		},
-		server: 'mydb.location.to.server.com'
-	}, 'mydb', { min: 1, max 5, timeoutMS: 5000 })
-		.then(connection => {
-			//this is where we can do initial queries, we have to wait until this point for the connection to be initialized and ready
-			connection.execSql(
-				`SELECT * FROM myTable`
-			)
-				.then(result => {
-					//process returns
-				})
-				.catch(error => {
-					//failed to exec request
-				})
-		})
+import { ConnectionHandler } from '@overseers/tch'
+
+ConnectionHandler.getByConfig({
+    authentication: {
+        options: {
+            userName: 'myUser',
+            password: 'myPassword
+        },
+        type: 'default'
+    },
+    options: {
+        database: 'mydb'
+    },
+    server: 'mydb.location.to.server.com'
+}, 'mydb', { min: 1, max 5, timeoutMS: 5000 })
+    .then(connection => {
+        //this is where we can do initial queries, we have to wait until this point for the connection to be initialized and ready
+        connection.execSql(
+            `SELECT * FROM myTable`
+        )
+            .then(result => {
+                //process returns
+            })
+            .catch(error => {
+                //failed to exec request
+            })
+    })
 ```
 
-#### Using connection after it iss created:
+#### Using connection after it is created:
 ```javascript
 import { ConnectionHandler } from '@overseers/tch'
 
