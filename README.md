@@ -40,9 +40,9 @@ A tedious wrapper to provide some extra functionality with promise based connect
 					//failed to exec request
 				})
 		})
-	```
+```
 
-#### Using connection after it's created:
+#### Using connection after it iss created:
 ```javascript
 import { ConnectionHandler } from '@overseers/tch'
 
