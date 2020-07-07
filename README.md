@@ -3,7 +3,7 @@
 A tedious wrapper to provide some extra functionality with promise based connections. Pooling is built in with normal exec statments and additional pooling capabilities are available using callbacks.
 
 ---
-##**IN DEVELOPMENT**
+## ** IN DEVELOPMENT **
 ---
 
 ### Installation
@@ -11,7 +11,7 @@ A tedious wrapper to provide some extra functionality with promise based connect
 	```npm i @overseers/tch```
 ---
 ### Usage
-####Creating a connection:
+#### Creating a connection:
 ```javascript
 	import { ConnectionHandler } from '@overseers/tch'
 	
@@ -42,7 +42,7 @@ A tedious wrapper to provide some extra functionality with promise based connect
 		})
 	```
 
-####Using connection after it's created:
+#### Using connection after it's created:
 ```javascript
 import { ConnectionHandler } from '@overseers/tch'
 
@@ -60,7 +60,7 @@ ConnectionHandler.getByName('mydb')
 })
 ```
 
-####Writing data
+#### Writing data
 ```javascript
 import { ConnectionHandler, RequestParameter } from '@overseers/tch'
 import {TYPES} from 'tedious'
@@ -83,7 +83,7 @@ ConnectionHandler.getByName('mydb')
 })
 ```
 
-####Pooling
+#### Pooling
 ```javascript
 import { ConnectionHandler, RequestParameter } from '@overseers/tch'
 import {TYPES} from 'tedious'
@@ -110,6 +110,6 @@ ConnectionHandler.getByName('mydb')
 })
 ```
 
-####INFO
+#### INFO
 - The 'getByConfig' needs to be called and finished before the connection can actually be used. The connection is ready when the tedious connection relays that it has entered the 'LoggedIn' state.
 - The DatabaseConnection will keep the minimum amount of connections alive. Any connection created between the minimum and maximum will exist for as long as it is used until it has been marked inactive for the timeoutMS provided.
