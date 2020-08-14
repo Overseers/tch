@@ -28,10 +28,13 @@ export class RequestWrapper {
     }
 };
 
-export type PoolConfig = {
-    timeoutMS: number,
-    min: number,
-    max: number;
+export type Config = {
+    killPoolConnectionsMs?: number,
+    killStaticConnectionsMs?: number,
+    minimumPoolConnections?: number,
+    maximumPoolConnections?: number,
+    staticConnectionCount?: number,
+    maximumSqlPerSecond?: number;
 };
 
 export type tediousState = {

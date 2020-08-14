@@ -1,16 +1,16 @@
 import DatabaseConnection from "./DatabaseConnection";
 import { ConnectionConfig } from "tedious";
-import { PoolConfig } from "./Types";
+import { Config } from "./Types";
 
 class ConnectionHandler {
     databaseConnections: DatabaseConnection[] = [];
 
-    getByConfig = (config: ConnectionConfig, name: string, pool: PoolConfig): Promise<DatabaseConnection> => {
+    getByConfig = (tediousConfig: ConnectionConfig, name: string, config: Config): Promise<DatabaseConnection> => {
         return new Promise((resolve) => {
-            let index = this.databaseConnections.findIndex(conn => JSON.stringify(conn.config) === JSON.stringify(config));
+            let index = this.databaseConnections.findIndex(conn => JSON.stringify(conn.tediousConfig) === JSON.stringify(tediousConfig));
 
             if (index === -1) {
-                index = this.databaseConnections.push(new DatabaseConnection(name, config, pool)) - 1;
+                index = this.databaseConnections.push(new DatabaseConnection(name, tediousConfig, config)) - 1;
             }
 
             this.databaseConnections[index].createConnections()
@@ -28,7 +28,14 @@ class ConnectionHandler {
                 return reject({ message: 'Database name not found' });
             }
 
-            return resolve(this.databaseConnections[index]);
+            if (this.databaseConnections[index].recreateConnections) {
+                this.databaseConnections[index].createConnections()
+                    .then(() => {
+                        return resolve(this.databaseConnections[index]);
+                    });
+            } else {
+                return resolve(this.databaseConnections[index]);
+            }
         });
     };
 }

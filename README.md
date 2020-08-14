@@ -19,7 +19,7 @@ ConnectionHandler.getByConfig({
     authentication: {
         options: {
             userName: 'myUser',
-            password: 'myPassword
+            password: 'myPassword'
         },
         type: 'default'
     },

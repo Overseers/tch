@@ -6,6 +6,6 @@
         "rootDirs": [
             "./src"
         ],
-        "declaration":true
-    },
+        "declaration":true,
+    }
 }
