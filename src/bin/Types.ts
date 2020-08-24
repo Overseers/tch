@@ -1,4 +1,3 @@
-export { TYPES, TediousType } from 'tedious';
 import { TediousType } from 'tedious';
 
 export class RequestParameter {
@@ -13,20 +12,14 @@ export class RequestParameter {
     }
 };
 
-export interface onError {
-    tediousError?: any;
-    sqlMsg?: string;
-    parameters?: RequestParameter[];
-}
-
 export class RequestWrapper {
     query: string;
     inputParams: RequestParameter[];
     outputParams: RequestParameter[];
     onFinish: (rows?: any[]) => void;
-    onError: (message: onError) => void;
+    onError: (message: string) => void;
 
-    constructor(query: string, onFinish: (rows?: any[]) => void, onError: (message: onError) => void, inputParams: RequestParameter[] = [], outputParams: RequestParameter[] = []) {
+    constructor(query: string, onFinish: (rows?: any[]) => void, onError: (message: string) => void, inputParams: RequestParameter[] = [], outputParams: RequestParameter[] = []) {
         this.query = query;
         this.inputParams = inputParams;
         this.outputParams = outputParams;
@@ -36,8 +29,12 @@ export class RequestWrapper {
 };
 
 export type Config = {
+    killPoolConnectionsMs?: number,
+    killStaticConnectionsMs?: number,
     minimumPoolConnections?: number,
     maximumPoolConnections?: number,
+    staticConnectionCount?: number,
+    maximumSqlPerSecond?: number;
 };
 
 export type tediousState = {
