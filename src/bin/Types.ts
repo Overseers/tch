@@ -1,4 +1,5 @@
-import { TediousType } from 'tedious';
+import { TediousType, TYPES as types } from 'tedious';
+import { ConnectionConfig as connectionConfig } from "tedious";
 
 export class RequestParameter {
     name: string;
@@ -70,3 +71,7 @@ export const TediousStates: tediousState = {
     SENT_ATTENTION: 'SentAttention',
     FINAL: 'Final'
 };
+
+export type ConnectionConfig = {} & connectionConfig;
+
+export const TYPES = types;

@@ -1,6 +1,5 @@
 import DatabaseConnection from "./DatabaseConnection";
-import { ConnectionConfig } from "tedious";
-import { Config } from "./Types";
+import { Config, ConnectionConfig } from "./Types";
 
 class ConnectionHandler {
     databaseConnections: DatabaseConnection[] = [];

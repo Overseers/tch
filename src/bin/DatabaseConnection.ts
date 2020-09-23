@@ -30,6 +30,7 @@ export default class DatabaseConnection {
                     this.connections[index].events.on('state', (message) => {
                         let newIndex = this.connections.findIndex(conn => conn.id === index);
                         if (message.to === TediousStates.LOGGED_IN) {
+                            // console.log(message);
                             this.connections[newIndex].busy = false;
                             if (!this.connections[newIndex].intialized) {
                                 this.connections[newIndex].intialized = true;
@@ -78,26 +79,18 @@ export default class DatabaseConnection {
     };
 
     execSql = (sql: string, inputParameters: RequestParameter[] = [], outputParameters: RequestParameter[] = []) => {
-        return new Promise((resolve, reject) => {
-            this.getAvailableConnection()
-                .then(connection => {
-                    this.handleRequest(connection, new RequestWrapper(
-                        sql, () => { }, () => { }, inputParameters, outputParameters
-                    ))
-                        .then(resolve)
-                        .catch(reject);
-                })
-                .catch(error => {
-                    this.increaseConnections()
-                        .then(connection => {
-                            this.handleRequest(connection, new RequestWrapper(
-                                sql, () => { }, () => { }, inputParameters, outputParameters
-                            ))
-                                .then(resolve)
-                                .catch(reject);
-                        })
-                        .catch(reject);
-                });
+        return new Promise(async (resolve, reject) => {
+            let connection = (await this.getAvailableConnection()) || (await this.increaseConnections());
+            if (connection) {
+                connection.busy = true;
+                this.handleRequest(connection, new RequestWrapper(
+                    sql, () => { }, () => { }, inputParameters, outputParameters
+                ))
+                    .then(resolve)
+                    .catch(reject);
+            } else {
+                reject(new Error('No available connection'));
+            }
         });
     };
 
@@ -136,10 +129,9 @@ export default class DatabaseConnection {
         });
     };
 
-    handleRequestQueue = (connection: ConnectionWrapper) => {
+    handleRequestQueue = (index: number) => {
         this.requestsMade++;
         let requestWrapper = this.queue.shift();
-        connection.busy = true;
         let rows: any[] = [];
         let request = new Request(requestWrapper.query, (error, rowCount, rowsInserted) => {
             this.requestsMade--;
@@ -168,7 +160,7 @@ export default class DatabaseConnection {
                 }, {})
             );
         });
-        connection.getConnection().execSql(request);
+        this.connections[index].getConnection().execSql(request);
     };
 
     dequeue = () => {
@@ -179,7 +171,7 @@ export default class DatabaseConnection {
 
                 if (index > -1) {
                     this.connections[index].busy = true;
-                    this.handleRequestQueue(this.connections[index]);
+                    this.handleRequestQueue(index);
                 } else if (this.connections.filter(conn => !conn.isStaticConnection).length < this.config.maximumPoolConnections) {
                     this.increaseConnections()
                         .then(() => this.dequeue())
