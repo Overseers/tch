@@ -1,11 +1,12 @@
 {
   "name": "@overseers/tch",
-  "version": "0.2.13",
+  "version": "0.4.1",
   "description": "Tedious Connection Handler",
   "main": "dist/index.js",
   "types": "dist",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "ts-node-dev --respawn src/index.ts",
     "build": "npm run clean && tsc",
     "build:watch": "npm run clean && npm run watch",
     "watch": "tsc -w",
@@ -47,6 +48,7 @@
     "typescript": "^3.9.6"
   },
   "dependencies": {
-    "tedious": "^8.3.0"
+    "tedious": "^9.2.1",
+    "tedious-pool": "^1.0.0"
   }
 }

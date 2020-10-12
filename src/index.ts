@@ -1,15 +1,7 @@
-import ConnectionHandler from './bin/ConnectionHandler';
-import DatabaseConnection from './bin/DatabaseConnection';
-import ConnectionWrapper from './bin/ConnectionWrapper';
-import { RequestParameter, RequestWrapper, Config, TYPES, ConnectionConfig } from './bin/Types';
+import TCH from './bin/ConnectionHandler';
 
-export {
-    RequestParameter,
-    RequestWrapper,
-    ConnectionWrapper,
-    ConnectionConfig,
-    Config,
-    DatabaseConnection,
-    ConnectionHandler,
-    TYPES
-};
+
+export * from './bin/types';
+export * from './bin/ConnectionHandler';
+
+export default TCH;

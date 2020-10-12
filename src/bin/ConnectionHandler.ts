@@ -1,42 +1,160 @@
-import DatabaseConnection from "./DatabaseConnection";
-import { Config, ConnectionConfig } from "./Types";
+import { min } from 'moment';
+import {Connection, Request} from 'tedious'
+import { ConnectionConfig, ConnectionObject, params, TediousStates } from './types';
+import { PoolConfig } from './types';
 
-class ConnectionHandler {
-    databaseConnections: DatabaseConnection[] = [];
+export class TCH {
+    connections: ConnectionObject[] = [];
+    connectionConfig: ConnectionConfig;
+    poolConfig: PoolConfig;
+    cleanup: NodeJS.Timeout;
 
-    getByConfig = (tediousConfig: ConnectionConfig, name: string, config: Config): Promise<DatabaseConnection> => {
+    createConnections = (poolConfig: PoolConfig, connectionConfig: ConnectionConfig) => {
+        console.log('creating connections')
+        this.connectionConfig = connectionConfig;
+        this.poolConfig = poolConfig;
+        if(this.connections.length < poolConfig.min){
+            for(let i = 0; i < this.poolConfig.min - this.connections.length; i++){
+                this.createConnection();
+            }
+        }
+
+        this.cleanup = setInterval(() => {
+            let currentTS = Date.now();
+            // console.log('connections to close:', this.connections.filter(conn => conn.ttl).length, 'Connections left:', this.connections.length, 'Connections busy:', this.connections.filter(conn => conn.busy).length)
+            for(let i = 0; i < this.connections.length; i ++){
+                if(this.connections[i].isTimed && this.connections[i].ttl < currentTS){
+                    this.cleanUp(i);
+                } else if (this.connections[i].isTimed && !this.connections[i].ttl && !this.connections[i].busy){
+                    this.cleanUp(i);
+                }
+            }
+        }, 5000);
+        
+        return this;
+    }
+
+    private cleanUp = (i: number) => {
+        // console.log('Closing connection with the id:', this.connections[i].id)
+        this.connections[i].busy = true;
+        this.connections[i].ready = false;
+
+        let id = this.connections[i].id;
+
+        this.connections[i].connection.on('end', () => {
+            let updatedIndex = this.connections.findIndex(connection => connection.id === id);
+            this.removeConnection(updatedIndex)
+            // console.log('Connections left:', this.connections.length)
+        })
+        
+        this.connections[i].connection.close();
+    }
+
+    private removeConnection = (index: number) => {
+        this.connections[index].connection.removeAllListeners();
+        this.connections.splice(index, 1);
+    }
+
+    private createConnection = () => {
+        let index = this.connections.push({
+            busy: false,
+            ready: false,
+            isTimed: false,
+            id: 0,
+            connection: new Connection(this.connectionConfig)
+        }) - 1;
+        let id = this.connections[Math.min(this.connections.length - 1, Math.max(0, index - 1))].id + 1;
+        this.connections[index].id = id;
+
+        this.connections[index].connection.on('end', () => this.handleMinConnectionClose(id))
+
+        this.connections[index].connection.on('debug', (msg) => {
+            let updatedIndex = this.connections.findIndex(connection => connection.id === id);
+            if(msg.includes('State change')){
+                let splitMsg = msg.split(': ')[1].split(' -> ');
+                if(splitMsg[1] === TediousStates.LOGGED_IN){
+                    this.connections[updatedIndex].ready = true;
+                    this.connections[updatedIndex].connection.removeAllListeners('debug');
+                }
+            }
+        })
+        return index;
+    }
+
+    private handleMinConnectionClose = (id: number) => {
+        let updatedIndex = this.connections.findIndex(connection => connection.id === id);
+        this.removeConnection(updatedIndex)
+        this.createConnection();
+    }
+
+    private createTimedConnection = () => {
+        let index = this.createConnection();
+        this.connections[index].connection.removeAllListeners('end');
+        this.connections[index].isTimed = true;
+    }
+
+    getConnection = (): Promise<({connection: Connection, release: () => void})> => {
         return new Promise((resolve) => {
-            let index = this.databaseConnections.findIndex(conn => JSON.stringify(conn.tediousConfig) === JSON.stringify(tediousConfig));
+            (function waitForActiveConnection() {
+                let index: number = this.connections.findIndex(connection => connection.ready && !connection.busy);
+                if(index > -1) {
+                    this.connections[index].busy = true;
+                    let id = this.connections[index].id;
+                    this.connections[index].ttl = undefined;
+                    resolve({connection: this.connections[index].connection, release: () => {
+                        let updatedIndex = this.connections.findIndex(conn => conn.id === id);
+                        this.connections[updatedIndex].busy = false;
+                        if(this.connections[updatedIndex].isTimed) {
+                            this.connections[updatedIndex].ttl = Date.now() + this.poolConfig.timeout;
+                        }
+                    }});
+                } else {
+                    if(this.connections.length < this.poolConfig.max) {
+                        this.createTimedConnection();
+                    }
+                    setImmediate(waitForActiveConnection.bind(this))
+                }
+            }).bind(this)()
+        })
+    }
 
-            if (index === -1) {
-                index = this.databaseConnections.push(new DatabaseConnection(name, tediousConfig, config)) - 1;
-            }
+    getHandledRequest = <T>(sql: string, inputParams: params[] = [], outputParams: params[] = []): Promise<T[]> => {
+        return new Promise(async(resolve, reject) => {
+            let {connection, release} = await this.getConnection();
 
-            this.databaseConnections[index].createConnections()
-                .then(() => {
-                    return resolve(this.databaseConnections[index]);
-                });
-        });
-    };
+            let data: any[] = [];
 
-    getByName = (name: string): Promise<DatabaseConnection> => {
-        return new Promise((resolve, reject) => {
-            let index = this.databaseConnections.findIndex(conn => conn.name === name);
+            let request = new Request(sql, (error, rowCount, rows) => {
+                release();
+                if(error){
+                    reject(error);
+                } else {
+                    if(rowCount === data.length){
+                        resolve(data);
+                    } else {
+                        reject(new Error('Invalid Data'));
+                    }
+                }
+            })
 
-            if (index === -1) {
-                return reject({ message: 'Database name not found' });
-            }
+            inputParams.forEach(param => {
+                request.addParameter(param.name, param.type, param.value);
+            })
 
-            if (this.databaseConnections[index].recreateConnections) {
-                this.databaseConnections[index].createConnections()
-                    .then(() => {
-                        return resolve(this.databaseConnections[index]);
-                    });
-            } else {
-                return resolve(this.databaseConnections[index]);
-            }
-        });
-    };
+            outputParams.forEach(param => {
+                request.addOutputParameter(param.name, param.type, param.value);
+            })
+
+            request.on('row', (columns) => {
+                data.push(columns.reduce((acc, next) => {
+                    acc[next.metadata.colName] = next.value;
+                    return acc;
+                }, {}))
+            })
+
+            connection.execSql(request);
+        })
+    }
 }
 
-export default new ConnectionHandler();
+export default new TCH();

@@ -13,103 +13,97 @@ A tedious wrapper to provide some extra functionality with promise based connect
 ### Usage
 #### Creating a connection:
 ```javascript
-import { ConnectionHandler } from '@overseers/tch'
+import TCH from '@overseers/tch'
 
-ConnectionHandler.getByConfig({
-    authentication: {
-        options: {
-            userName: 'myUser',
-            password: 'myPassword'
-        },
-        type: 'default'
-    },
-    options: {
-        database: 'mydb'
-    },
-    server: 'mydb.location.to.server.com'
-}, 'mydb', { min: 1, max 5, timeoutMS: 5000 })
-    .then(connection => {
-        //this is where we can do initial queries, we have to wait until this point for the connection to be initialized and ready
-        connection.execSql(
-            `SELECT * FROM myTable`
-        )
-            .then(result => {
-                //process returns
-            })
-            .catch(error => {
-                //failed to exec request
-            })
-    })
+let poolConfig = {
+	min: 1,
+	max: 5,
+	timeout: 10000
+}
+
+let tediousConfig = {
+	"server": "my.sql.server", 
+	"options": 
+	{ 
+		"port": 9999,
+		"database": "myDatabase",
+		"encrypt": false
+	},
+	"authentication": {
+		"options": {
+			"userName": "myUser",
+			"password": "myPass"
+			
+		},
+		"type": "default"
+	}
+}
+
+TCH.createConnections(poolConfig, tediousConfig);
 ```
 
 #### Using connection after it is created:
 ```javascript
-import { ConnectionHandler } from '@overseers/tch'
+import TCH, {Request} from '@overseers/tch'
 
-ConnectionHandler.getByName('mydb')
-.then(connection => {
-	connection.execSql(
-		`SELECT * FROM myTable`
-	)
-		.then(result => {
-			//process rows
-		})
-		.catch(error => {
-			//failed exec request
-		})
+TCH.createConnections().getConnection()
+.then(({connection, release}) => {
+	let data: any[] = [];
+        let request = new Request('select * from dbo.Test', (error, rowCount, rows) => {
+            release();
+            if(error){
+                console.error('ERROR', error);
+            } else {
+                if(rowCount === data.length){
+                    console.log(JSON.stringify(data), rows);
+                } else {
+                    console.error('Invalid Response')
+                }
+            }
+        });
+    
+        request.on('row', (columns) => {
+            data.push(columns.reduce((acc, next) => {
+                acc[next.metadata.colName] = next.value;
+                return acc;
+            }, {}));
+        })
+    
+        connection.execSql(request)
 })
+.catch(console.error)
 ```
 
-#### Writing data
+#### General Purpose Use
 ```javascript
-import { ConnectionHandler, RequestParameter } from '@overseers/tch'
-import {TYPES} from 'tedious'
+import TCH, {Request} from '@overseers/tch';
 
-ConnectionHandler.getByName('mydb')
+TCH.getConnection()
 .then(connection => {
-	connection.execSql(
-		`INSERT INTO myTable VALUES (@rowOne, @rowTwo)`,
-		[
-			new RequestParameter('rowOne',  TYPES.BigInt, 0),
-			new RequestParameter('rowTwo', TYPES.NVarChar, 'my string')
-		]
-	)
-		.then(result => {
-			//process rows
-		})
-		.catch(error => {
-			//failed exec request
-		})
-})
+	//your request goes here
+}).catch(console.error);
 ```
 
-#### Pooling
+#### Shorthand Handled Request
 ```javascript
-import { ConnectionHandler, RequestParameter } from '@overseers/tch'
-import {TYPES} from 'tedious'
+import TCH, { Request } from '@overseers/tch'
 
-ConnectionHandler.getByName('mydb')
-.then(connection => {
-	for(let i = 0; i < 1000; i++){
-		connection.enqueue(
-			new RequestWrapper(
-				`INSERT INTO myTable VALUES(@valueOne, @valueTwo)`,
-				(rows) => {
-					//process return of this statement
-				},
-				(error) => {
-					//process failure of this statement
-				},
-				[
-					new RequestParameter('valueOne', TYPES.NVarChar, `insert#${i}`),
-					new RequestParameter('valueTwo', TYPES.BigInt, i)
-				]
-			)
-		)
-	}
-})
+TCH.getHandledRequest('select * from dbo.Test', [], []).then(console.log).catch(console.error);
 ```
 
-#### INFO
-- The 'getByConfig' needs to be called and finished before the connection can actually be used. The connection is ready when the tedious connection relays that it has entered the 'LoggedIn' state.
-- The DatabaseConnection will keep the minimum amount of connections alive. Any connection created between the minimum and maximum will exist for as long as it is used until it has been marked inactive for the timeoutMS provided.
+#### Async
+```javascript
+import TCH, {Request} from '@overseers/tch';
+
+(async () => {
+	const connection = await TCH.getConnection();
+	//do what you want with connection;
+
+	const result = await TCH.getHandledRequest('select * from dbo.Test', [], []);
+})()
+```
+
+# INFO
+- The DatabaseConnection will keep the minimum amount of connections alive. Any connection created between the minimum and maximum will exist for as long as it is used until it is released and unused for the alotted timeout.
+- When working with the connection itself, you are provided the release() function. The connection will remain busy until you call the release function. If you fail to call it after you are finished then the module will continue to create new connections up to your defined max count. After that, it will wait until one is available. During this wait, there is a 30ms timeout to check for a available connection.
+- When working with large max pools, you can hit your maximum amount of connections fairly quickly. However, if the connections are never used then they will automatically be disposed of by a 5s timer that runs to clean up connections.
