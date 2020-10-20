@@ -1,6 +1,6 @@
 {
   "name": "@overseers/tch",
-  "version": "0.4.1",
+  "version": "0.4.13",
   "description": "Tedious Connection Handler",
   "main": "dist/index.js",
   "types": "dist",
@@ -11,9 +11,9 @@
     "build:watch": "npm run clean && npm run watch",
     "watch": "tsc -w",
     "clean": "rimraf dist/",
-    "publish:patch": "tsc && npm version patch --no-git-tag-version && npm publish",
-    "publish:minor": "tsc && npm version minor --no-git-tag-version && npm publish",
-    "publish:major": "tsc && npm version major --no-git-tag-version && npm publish",
+    "publish:patch": "tsc && npm run build && npm version patch --no-git-tag-version && npm publish",
+    "publish:minor": "tsc && npm run build && npm version minor --no-git-tag-version && npm publish",
+    "publish:major": "tsc && npm run build && npm version major --no-git-tag-version && npm publish",
     "example": "npm run build && node test.js"
   },
   "files": [

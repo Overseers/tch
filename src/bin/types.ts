@@ -1,8 +1,16 @@
-import {Connection, ConnectionConfig as connectionConfig, Request as _Request, TediousType, TYPES} from 'tedious';
+import {Connection as _Connection, ConnectionConfig as connectionConfig, Request as _Request, TediousType, TYPES} from 'tedious';
+export {TYPES} from 'tedious';
+
+export type types = typeof TYPES;
+export const types = TYPES;
 
 export interface TediousTypes extends TediousType {};
 
-export const types = TYPES;
+export interface Request extends _Request {};
+export class Request extends _Request{};
+
+export interface Connection extends _Connection{};
+export class Connection extends _Connection{};
 
 export type PoolConfig = {
     min: number,
@@ -10,7 +18,7 @@ export type PoolConfig = {
     timeout: number
 }
 
-export type ConnectionConfig = {} & connectionConfig;
+export interface ConnectionConfig extends connectionConfig{};
 
 export type ConnectionObject = {
     connection: Connection,
@@ -37,8 +45,6 @@ export const TediousStates = {
     SENT_ATTENTION: 'SentAttention',
     FINAL: 'Final'
 };
-
-export const Request = _Request;
 
 export type params = {
     name: string,
